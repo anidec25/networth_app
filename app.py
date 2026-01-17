@@ -6,12 +6,13 @@ import plotly.express as px
 from datetime import date
 
 # ====================================================
-# PAGE CONFIG (MOBILE FIRST)
+# PAGE CONFIG
 # ====================================================
 st.set_page_config(
     page_title="Net Worth Tracker",
     page_icon="💰",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 # ====================================================
@@ -35,15 +36,15 @@ client = gspread.authorize(creds)
 sheet = client.open_by_key(SHEET_ID)
 
 # ====================================================
-# CSS (MOBILE FRIENDLY)
+# CSS
 # ====================================================
 st.markdown("""
 <style>
 .card {
     background: white;
-    padding: 1rem;
-    border-radius: 14px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    padding: 1.25rem;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
     margin-bottom: 1rem;
 }
 
@@ -51,7 +52,6 @@ st.markdown("""
     font-size: 0.7rem;
     text-transform: uppercase;
     color: #6b7280;
-    margin-bottom: 0.3rem;
 }
 
 .card-value {
@@ -70,21 +70,18 @@ st.markdown("""
 # HELPERS
 # ====================================================
 @st.cache_data(ttl=300)
-def load_sheet(tab_name):
-    return pd.DataFrame(sheet.worksheet(tab_name).get_all_records())
+def load_sheet(tab):
+    return pd.DataFrame(sheet.worksheet(tab).get_all_records())
 
 def normalize_month_end(d):
     return pd.to_datetime(d) + pd.offsets.MonthEnd(0)
 
-def clean_numeric(df, col):
-    if col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-    return df
+def clean_date(df):
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    return df.dropna(subset=["date"])
 
-def clean_date(df, col):
-    if col in df.columns:
-        df[col] = pd.to_datetime(df[col], errors="coerce")
-        df = df.dropna(subset=[col])
+def clean_value(df):
+    df["value"] = pd.to_numeric(df["value"], errors="coerce").fillna(0)
     return df
 
 # ====================================================
@@ -95,11 +92,15 @@ liability_categories = load_sheet("liability_categories")
 assets = load_sheet("assets")
 liabilities = load_sheet("liabilities")
 
-# ====================================================
-# DATA CLEANING
-# ====================================================
-assets = clean_numeric(clean_date(assets, "date"), "value")
-liabilities = clean_numeric(clean_date(liabilities, "date"), "value")
+if not assets.empty:
+    assets = clean_value(clean_date(assets))
+    assets["month"] = assets["date"].dt.to_period("M").dt.to_timestamp("M")
+
+if not liabilities.empty:
+    liabilities = clean_value(clean_date(liabilities))
+    liabilities["month"] = liabilities["date"].dt.to_period("M").dt.to_timestamp("M")
+
+show_empty_state = assets.empty and liabilities.empty
 
 # ====================================================
 # UI
@@ -116,108 +117,60 @@ tab1, tab2, tab3 = st.tabs([
 # DASHBOARD
 # ====================================================
 with tab1:
-    if assets.empty and liabilities.empty:
-        st.info("No data yet. Add assets or liabilities to begin.")
-        st.stop()
-
-    total_assets = assets["value"].sum()
-    total_liabilities = liabilities["value"].sum()
-    net_worth = total_assets - total_liabilities
-
-    # ---- KPI CARDS ----
-    for label, value in [
-        ("Total Assets", total_assets),
-        ("Total Liabilities", total_liabilities),
-        ("Net Worth", net_worth),
-    ]:
-        st.markdown(f"""
-        <div class="card">
-            <div class="card-title">{label}</div>
-            <div class="card-value">₹{value:,.0f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # ---- TIME SERIES ----
-    asset_ts = (
-        assets.assign(date=assets["date"].dt.to_period("M").dt.to_timestamp("M"))
-        .groupby("date")["value"].sum()
-    )
-    liability_ts = (
-        liabilities.assign(date=liabilities["date"].dt.to_period("M").dt.to_timestamp("M"))
-        .groupby("date")["value"].sum()
-    )
-
-    networth_ts = asset_ts.subtract(liability_ts, fill_value=0).reset_index(name="net_worth")
-
-    # ---- NET WORTH CHART ----
-    st.plotly_chart(
-        px.line(
-            networth_ts,
-            x="date",
-            y="net_worth",
-            height=260,
-            template="plotly_white"
-        ),
-        use_container_width=True
-    )
-
-    # ====================================================
-    # 📈 MoM KPI + CHART (NEW)
-    # ====================================================
-    mom_series = asset_ts.pct_change() * 100
-    mom_series = mom_series.dropna()
-
-    latest_mom = mom_series.iloc[-1] if not mom_series.empty else 0
-    prev_mom = mom_series.iloc[-2] if len(mom_series) > 1 else 0
-    mom_delta = latest_mom - prev_mom
-
-    st.markdown(f"""
-    <div class="card">
-        <div class="card-title">Assets MoM Growth</div>
-        <div class="card-value">{latest_mom:.2f}%</div>
-        <div class="card-sub" style="color:{'#16a34a' if mom_delta >= 0 else '#dc2626'};">
-            {'▲' if mom_delta >= 0 else '▼'} {abs(mom_delta):.2f}% vs last month
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if not mom_series.empty:
-        mom_df = mom_series.reset_index(name="growth_pct")
-
-        fig_mom = px.bar(
-            mom_df,
-            x="date",
-            y="growth_pct",
-            height=240,
-            template="plotly_white",
-            labels={"growth_pct": "MoM Growth (%)"}
+    if show_empty_state:
+        st.markdown(
+            """
+            <div style="
+                max-width:720px;
+                margin:3rem auto;
+                background:white;
+                padding:2.5rem 2rem;
+                border-radius:20px;
+                box-shadow:0 10px 30px rgba(0,0,0,0.12);
+                text-align:center;
+            ">
+                <div style="font-size:3rem;">👋</div>
+                <h2 style="margin:0.5rem 0;color:#111827;">
+                    Welcome to Net Worth Tracker
+                </h2>
+                <p style="color:#4b5563;font-size:1rem;line-height:1.6;">
+                    Start by adding your first asset or liability.<br>
+                    This dashboard will track your net worth growth over time.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
-        fig_mom.update_traces(
-            marker_color=[
-                "#16a34a" if v >= 0 else "#dc2626"
-                for v in mom_df["growth_pct"]
-            ]
-        )
+    else:
+        total_assets = assets["value"].sum()
+        total_liabilities = liabilities["value"].sum()
+        net_worth = total_assets - total_liabilities
 
-        st.plotly_chart(fig_mom, use_container_width=True)
+        for label, val in [
+            ("Total Assets", total_assets),
+            ("Total Liabilities", total_liabilities),
+            ("Net Worth", net_worth)
+        ]:
+            st.markdown(f"""
+            <div class="card">
+                <div class="card-title">{label}</div>
+                <div class="card-value">₹{val:,.0f}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    # ---- ALLOCATION ----
-    with st.expander("📊 Allocation Breakdown"):
-        st.plotly_chart(
-            px.pie(
-                assets.groupby("asset_category")["value"].sum().reset_index(),
-                values="value",
-                names="asset_category"
-            ),
-            use_container_width=True
-        )
+        asset_ts = assets.groupby("month")["value"].sum()
+        liability_ts = liabilities.groupby("month")["value"].sum()
+
+        networth_ts = asset_ts.subtract(liability_ts, fill_value=0).reset_index(name="net_worth")
 
         st.plotly_chart(
-            px.pie(
-                liabilities.groupby("liability_category")["value"].sum().reset_index(),
-                values="value",
-                names="liability_category"
+            px.line(
+                networth_ts,
+                x="month",
+                y="net_worth",
+                height=260,
+                template="plotly_white"
             ),
             use_container_width=True
         )
@@ -244,7 +197,7 @@ with tab2:
             float(value),
             notes
         ])
-        st.success("Asset added")
+        st.success("Asset added successfully")
         st.cache_data.clear()
         st.rerun()
 
@@ -270,6 +223,6 @@ with tab3:
             float(value),
             notes
         ])
-        st.success("Liability added")
+        st.success("Liability added successfully")
         st.cache_data.clear()
         st.rerun()
