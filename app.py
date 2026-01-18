@@ -71,9 +71,9 @@ st.markdown("""
 # HELPERS
 # ====================================================
 @st.cache_data(ttl=300)
-def load_sheet(tab_name):
+def load_sheet(tab_name, username=None):
     df = pd.DataFrame(sheet.worksheet(tab_name).get_all_records())
-    if "username" in df.columns:
+    if "username" in df.columns and username is not None:
         df = df[df["username"] == username]
     return df
 
@@ -129,8 +129,8 @@ username = st.session_state["username"]
 # ====================================================
 asset_categories = load_sheet("asset_categories")
 liability_categories = load_sheet("liability_categories")
-assets = load_sheet("assets")
-liabilities = load_sheet("liabilities")
+assets = load_sheet("assets", username)
+liabilities = load_sheet("liabilities", username)
 
 # ====================================================
 # DATA CLEANING
