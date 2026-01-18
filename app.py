@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="Net Worth Tracker",
     page_icon="💰",
     layout="centered",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"  # Sidebar expanded by default for login
 )
 
 # ====================================================
@@ -72,7 +72,10 @@ st.markdown("""
 # ====================================================
 @st.cache_data(ttl=300)
 def load_sheet(tab_name):
-    return pd.DataFrame(sheet.worksheet(tab_name).get_all_records())
+    df = pd.DataFrame(sheet.worksheet(tab_name).get_all_records())
+    if "username" in df.columns:
+        df = df[df["username"] == username]
+    return df
 
 def normalize_month_end(d):
     return pd.to_datetime(d) + pd.offsets.MonthEnd(0)
@@ -87,6 +90,39 @@ def clean_date(df, col):
         df[col] = pd.to_datetime(df[col], errors="coerce")
         df = df.dropna(subset=[col])
     return df
+
+# ====================================================
+# AUTHENTICATION (Streamlit built-in)
+# ====================================================
+if "username" not in st.session_state:
+    st.session_state["username"] = None
+
+with st.sidebar:
+    st.header("Login / Register")
+    if st.session_state["username"]:
+        st.success(f"Logged in as {st.session_state['username']}")
+        if st.button("Logout"):
+            st.session_state["username"] = None
+            st.rerun()
+    else:
+        login_tab, register_tab = st.tabs(["Login", "Register"])
+        with login_tab:
+            login_user = st.text_input("Username", key="login_user")
+            login_btn = st.button("Login", key="login_btn")
+            if login_btn and login_user:
+                st.session_state["username"] = login_user.strip().lower()
+                st.rerun()
+        with register_tab:
+            reg_user = st.text_input("New Username", key="reg_user")
+            reg_btn = st.button("Register", key="reg_btn")
+            if reg_btn and reg_user:
+                st.session_state["username"] = reg_user.strip().lower()
+                st.rerun()
+
+if not st.session_state["username"]:
+    st.stop()  # Only stop after rendering sidebar, not before tabs
+
+username = st.session_state["username"]
 
 # ====================================================
 # LOAD DATA
@@ -122,7 +158,6 @@ tab1, tab2, tab3 = st.tabs([
 with tab1:
     if assets.empty and liabilities.empty:
         st.info("No data yet. Add assets or liabilities to begin.")
-        st.stop()
 
     # ------------------------------------------------
     # OVERALL KPIs
@@ -304,6 +339,7 @@ with tab2:
     if submitted:
         sheet.worksheet("assets").append_row([
             normalize_month_end(asset_date).strftime("%Y-%m-%d"),
+            username,
             asset_category,
             asset_name,
             float(value),
@@ -330,6 +366,7 @@ with tab3:
     if submitted:
         sheet.worksheet("liabilities").append_row([
             normalize_month_end(liability_date).strftime("%Y-%m-%d"),
+            username,
             liability_category,
             liability_name,
             float(value),
