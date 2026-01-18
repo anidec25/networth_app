@@ -97,32 +97,41 @@ def clean_date(df, col):
 if "username" not in st.session_state:
     st.session_state["username"] = None
 
-with st.sidebar:
-    st.header("Login / Register")
-    if st.session_state["username"]:
-        st.success(f"Logged in as {st.session_state['username']}")
-        if st.button("Logout"):
-            st.session_state["username"] = None
-            st.rerun()
-    else:
-        login_tab, register_tab = st.tabs(["Login", "Register"])
-        with login_tab:
-            login_user = st.text_input("Username", key="login_user")
-            login_btn = st.button("Login", key="login_btn")
-            if login_btn and login_user:
-                st.session_state["username"] = login_user.strip().lower()
-                st.rerun()
-        with register_tab:
-            reg_user = st.text_input("New Username", key="reg_user")
-            reg_btn = st.button("Register", key="reg_btn")
-            if reg_btn and reg_user:
-                st.session_state["username"] = reg_user.strip().lower()
-                st.rerun()
-
 if not st.session_state["username"]:
-    st.stop()  # Only stop after rendering sidebar, not before tabs
+    st.markdown("""
+    <div style='display:flex;justify-content:center;align-items:center;height:40vh;'>
+        <div style='background:white;padding:2.5rem 2.5rem 1.5rem 2.5rem;border-radius:18px;box-shadow:0 6px 24px rgba(0,0,0,0.10);min-width:340px;max-width:400px;'>
+            <h2 style='text-align:center;margin:0 0 0.1rem 0;color:#111827;font-size:2.2rem;line-height:1;'>💰 Net Worth Tracker</h2>
+            <div style='margin-bottom:0.7rem;text-align:center;color:#6b7280;font-size:1.1rem;'>Login or Register to continue</div>
+            <div id='login-field'></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    # Place the username field directly after the heading, no extra margin
+    st.markdown("""
+    <style>
+    #login-field + div input {
+        margin-top: 0 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    login_user = st.text_input("Username", key="login_user_center", placeholder="Enter your username")
+    col = st.columns([2,1,2])
+    with col[1]:
+        login_btn = st.button("Login / Register", key="login_btn_center", use_container_width=True)
+    if login_btn and login_user:
+        st.session_state["username"] = login_user.strip().lower()
+        st.rerun()
+    st.stop()
 
 username = st.session_state["username"]
+
+# User-friendly logout button in the main app header row
+header_col1, header_col2 = st.columns([8,1])
+with header_col2:
+    if st.button("Logout", key="logout_btn", help="Logout", use_container_width=True):
+        st.session_state["username"] = None
+        st.rerun()
 
 # ====================================================
 # LOAD DATA
@@ -144,7 +153,7 @@ liabilities["month"] = liabilities["date"].dt.to_period("M").dt.to_timestamp("M"
 # ====================================================
 # UI
 # ====================================================
-st.title("💰 Net Worth Tracker")
+st.title(f"💰 Net Worth Tracker for {username}")
 
 tab1, tab2, tab3 = st.tabs([
     "📊 Dashboard",
