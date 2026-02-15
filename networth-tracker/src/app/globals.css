@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+html.dark,
+:root {
+  --background: #0b1220;
+  --surface: #111c2e;
+  --surface-strong: #1a2a40;
+  --foreground: #f5f7fb;
+  --muted: #b8c4d6;
+  --accent: #3b82f6;
+  --accent-soft: #172d4d;
+  --negative: #f87171;
+  --positive: #4ade80;
+}
+
+html.light {
+  --background: #f4efe7;
+  --surface: #fffaf3;
+  --surface-strong: #f1e5d3;
+  --foreground: #1e2a2f;
+  --muted: #59666d;
+  --accent: #0f766e;
+  --accent-soft: #d8f1ea;
+  --negative: #9f1239;
+  --positive: #166534;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  background:
+    radial-gradient(1000px 550px at 10% -5%, color-mix(in oklab, var(--accent) 22%, transparent) 0%, transparent 45%),
+    radial-gradient(900px 500px at 90% 0%, color-mix(in oklab, #1f3a5f 35%, transparent) 0%, transparent 42%),
+    var(--background);
+  color: var(--foreground);
+  min-height: 100vh;
+}
+
+input,
+select,
+button {
+  font: inherit;
+}
